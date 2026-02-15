@@ -2,9 +2,7 @@
 
 Render Mermaid code blocks directly in ChatGPT with one click. Toggle between source and diagram, and open an interactive enlarged view with pan and zoom.
 
-## Demo
-
-<video src="./screenshot.mp4" controls width="100%"></video>
+<https://github.com/user-attachments/assets/773d68eb-940d-43b0-aa68-07a5484daf07>
 
 ## Quick Start
 
