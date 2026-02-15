@@ -1,4 +1,6 @@
-# ChatGPT Mermaid Toggle Extension
+# Chrome Mermaid Extension
+
+Render Mermaid code blocks directly in ChatGPT with one click. Toggle between source and diagram, and open an interactive enlarged view with pan and zoom.
 
 ## Demo
 
