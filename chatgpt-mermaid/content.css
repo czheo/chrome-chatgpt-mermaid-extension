@@ -1,0 +1,35 @@
+.mmd-toggle-btn {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 0.25rem 0;
+}
+
+.mmd-toggle-btn:hover {
+  opacity: 0.85;
+}
+
+.mmd-diagram-wrap {
+  display: none;
+  overflow: auto;
+  padding: 1rem;
+}
+
+.mmd-diagram-wrap.is-visible {
+  display: block;
+}
+
+.mmd-diagram-wrap svg {
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
+.mmd-render-error {
+  color: #ef4444;
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
+  font-size: 12px;
+}
