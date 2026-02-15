@@ -1,5 +1,9 @@
 # ChatGPT Mermaid Toggle Extension
 
+## Demo
+
+<video src="./screenshot.mp4" controls width="100%"></video>
+
 ## Quick Start
 
 1. Open Chrome extensions page: `chrome://extensions`
