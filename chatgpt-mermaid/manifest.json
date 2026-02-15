@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "ChatGPT Mermaid Toggle",
+  "name": "ChatGPT Mermaid",
   "version": "0.1.0",
   "description": "Toggle mermaid code blocks between source and rendered diagram in ChatGPT.",
   "content_scripts": [
