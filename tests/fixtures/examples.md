@@ -131,9 +131,9 @@ sequenceDiagram
   "expectation": "patched",
   "variant": "normal",
   "mustContain": [
-    "A[\"Vectors x,y\"] --> B[\"Dot: <x,y>\"]",
+    "A[\"Vectors x,y\"] --> B[\"Dot: &lt;x,y&gt;\"]",
     "A --> C[\"Norms: ||x||, ||y||\"]",
-    "B --> D[\"Cosine: <x,y> / (||x|| ||y||)\"]",
+    "B --> D[\"Cosine: &lt;x,y&gt; / (||x|| ||y||)\"]",
     "A --> E[\"L2^2: ||x-y||^2\"]"
   ]
 }
@@ -150,4 +150,83 @@ graph TD
   F --> H[L2 ranking == Dot/Cos ranking]
   D --> G
   E --> H
+```
+
+### Case: Already quoted angle brackets
+```json
+{
+  "expectation": "patched",
+  "variant": "normal",
+  "mustContain": [
+    "B[\"&lt;x, y&gt;\"]",
+    "C[\"A<br/>B &lt; C &gt; D\"]"
+  ]
+}
+```
+```mermaid
+graph TD
+  A[Start] --> B["<x, y>"]
+  B --> C["A<br/>B < C > D"]
+```
+
+### Case: Node id with dot and angle brackets
+```json
+{
+  "expectation": "patched",
+  "variant": "normal",
+  "mustContain": [
+    "node.v1[\"dot id &lt;x&gt;\"]",
+    " --> node2[ok]"
+  ]
+}
+```
+```mermaid
+graph TD
+  node.v1[dot id <x>] --> node2[ok]
+```
+
+### Case: Quoted label containing square bracket and angle brackets
+```json
+{
+  "expectation": "patched",
+  "variant": "normal",
+  "mustContain": [
+    "A[\"arr[i] &lt; j &gt;\"]"
+  ]
+}
+```
+```mermaid
+graph TD
+  A["arr[i] < j >"] --> B[done]
+```
+
+### Case: Equals sign in unquoted label
+```json
+{
+  "expectation": "patched",
+  "variant": "normal",
+  "mustContain": [
+    "A[\"x &equals; y\"]",
+    "B[\"z &equals;&equals; 1\"]"
+  ]
+}
+```
+```mermaid
+graph TD
+  A[x = y] --> B[z == 1]
+```
+
+### Case: Equals sign in quoted label
+```json
+{
+  "expectation": "patched",
+  "variant": "normal",
+  "mustContain": [
+    "A[\"x &equals; y &lt; z &gt;\"]"
+  ]
+}
+```
+```mermaid
+graph TD
+  A["x = y < z >"] --> B[end]
 ```
