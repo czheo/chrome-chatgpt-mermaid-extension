@@ -1,10 +1,8 @@
 (function (root) {
+  // If Node[...] contains invalid chars, Mermaid render may fail.
+  // Patch such labels to Node["..."] in retry mode.
   function patchFlowchartLabelsForRetry(codeText) {
-    if (!/^\s*flowchart\b/m.test(codeText)) {
-      return codeText;
-    }
-
-    return codeText.replace(/\[([\s\S]*?)\]/g, (match, labelText) => {
+    return codeText.replace(/(\b[A-Za-z0-9_][A-Za-z0-9_-]*)\[([\s\S]*?)\]/g, (match, nodeId, labelText) => {
       const trimmed = labelText.trim();
       const isAlreadyQuoted =
         (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
@@ -14,15 +12,12 @@
         return match;
       }
 
-      const hasProblematicContinuation =
-        /(?:<br\s*\/?>|\r?\n|\u2028|\u2029)\s*\(/.test(labelText);
-      const hasParentheses = /[()]/.test(labelText);
-
-      if (!hasProblematicContinuation && !hasParentheses) {
+      const isSafeUnquotedLabel = /^[A-Za-z _]+$/.test(labelText);
+      if (isSafeUnquotedLabel) {
         return match;
       }
 
-      return `["${labelText.replace(/"/g, '\\"')}"]`;
+      return `${nodeId}["${labelText.replace(/"/g, '\\"')}"]`;
     });
   }
 

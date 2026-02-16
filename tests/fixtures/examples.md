@@ -39,9 +39,7 @@ flowchart LR
   "mustContain": [
     "N4[\"Step B (mode 1)<br/>secondary note\"]",
     "N5[\"Step C<br/>(mode 2 detail)\"]",
-    "N6[\"Step D (mode 3)\"]"
-  ],
-  "mustNotContain": [
+    "N6[\"Step D (mode 3)\"]",
     "N3[\"Step A<br/>plain second line\"]"
   ]
 }
@@ -99,8 +97,12 @@ flowchart LR
 ### Case: Regular flowchart (safe)
 ```json
 {
-  "expectation": "unchanged",
-  "variant": "normal"
+  "expectation": "patched",
+  "variant": "normal",
+  "mustContain": [
+    "A1[One] --> B1[Two]",
+    "B1 --> C1[\"Three<br/>line break only\"]"
+  ]
 }
 ```
 ```mermaid
@@ -121,4 +123,31 @@ sequenceDiagram
   participant A as ActorA
   participant B as ActorB
   A->>B: ping
+```
+
+### Case: Graph alias with math pipes
+```json
+{
+  "expectation": "patched",
+  "variant": "normal",
+  "mustContain": [
+    "A[\"Vectors x,y\"] --> B[\"Dot: <x,y>\"]",
+    "A --> C[\"Norms: ||x||, ||y||\"]",
+    "B --> D[\"Cosine: <x,y> / (||x|| ||y||)\"]",
+    "A --> E[\"L2^2: ||x-y||^2\"]"
+  ]
+}
+```
+```mermaid
+graph TD
+  A[Vectors x,y] --> B[Dot: <x,y>]
+  A --> C[Norms: ||x||, ||y||]
+  B --> D[Cosine: <x,y> / (||x|| ||y||)]
+  A --> E[L2^2: ||x-y||^2]
+  B --> E
+  C --> E
+  F[Unit-normalize x,y] --> G[Cosine == Dot]
+  F --> H[L2 ranking == Dot/Cos ranking]
+  D --> G
+  E --> H
 ```
