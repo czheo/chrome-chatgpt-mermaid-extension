@@ -216,7 +216,12 @@
 
   async function renderDiagram(diagramWrap, codeText) {
     if (diagramWrap.dataset.rendered === "true") {
-      return;
+      const usedPatchedCode = diagramWrap.dataset.usedPatchedCode === "true";
+      return {
+        rendered: true,
+        usedPatchedCode,
+        patchedCode: usedPatchedCode ? diagramWrap.dataset.patchedCode || "" : ""
+      };
     }
 
     initMermaid();
@@ -231,6 +236,13 @@
         result.bindFunctions(diagramWrap);
       }
       diagramWrap.dataset.rendered = "true";
+      diagramWrap.dataset.usedPatchedCode = "false";
+      delete diagramWrap.dataset.patchedCode;
+      return {
+        rendered: true,
+        usedPatchedCode: false,
+        patchedCode: ""
+      };
     } catch (err) {
       // HACK: GPT often emits flowchart labels like [text<br/>(...)] that Mermaid may parse as invalid.
       // We retry once by quoting bracket-label contents in flowcharts to improve tolerance.
@@ -245,7 +257,13 @@
             retryResult.bindFunctions(diagramWrap);
           }
           diagramWrap.dataset.rendered = "true";
-          return;
+          diagramWrap.dataset.usedPatchedCode = "true";
+          diagramWrap.dataset.patchedCode = patchedCode;
+          return {
+            rendered: true,
+            usedPatchedCode: true,
+            patchedCode
+          };
         } catch (retryErr) {
           retryMessage = retryErr && retryErr.message ? retryErr.message : String(retryErr);
         }
@@ -257,6 +275,13 @@
         : message;
       diagramWrap.innerHTML = `<div class="mmd-render-error">Mermaid render failed:\n${combinedMessage}</div>`;
       diagramWrap.dataset.rendered = "true";
+      diagramWrap.dataset.usedPatchedCode = "false";
+      delete diagramWrap.dataset.patchedCode;
+      return {
+        rendered: false,
+        usedPatchedCode: false,
+        patchedCode: ""
+      };
     }
   }
 
@@ -287,6 +312,12 @@
     renderedControls.className = "mmd-rendered-controls";
     renderedControls.appendChild(showCodeButton);
     renderedControls.appendChild(enlargeButton);
+    const patchedCopyButton = createActionButton(
+      "Copy patched code",
+      "Copy Mermaid code after retry patch"
+    );
+    patchedCopyButton.hidden = true;
+    renderedControls.appendChild(patchedCopyButton);
     renderedControls.hidden = true;
 
     controlsContainer.appendChild(renderButton);
@@ -302,11 +333,18 @@
         return;
       }
 
-      await renderDiagram(diagramWrap, codeText);
+      const renderResult = await renderDiagram(diagramWrap, codeText);
       codeContainer.style.display = "none";
       diagramWrap.classList.add("is-visible");
       renderButton.hidden = true;
       renderedControls.hidden = false;
+      patchedCopyButton.hidden = !(
+        renderResult &&
+        renderResult.rendered &&
+        renderResult.usedPatchedCode &&
+        renderResult.patchedCode
+      );
+      patchedCopyButton.dataset.patchedCode = patchedCopyButton.hidden ? "" : renderResult.patchedCode;
       showingDiagram = true;
     });
 
@@ -315,6 +353,7 @@
       diagramWrap.classList.remove("is-visible");
       codeContainer.style.display = "";
       renderedControls.hidden = true;
+      patchedCopyButton.hidden = true;
       renderButton.hidden = false;
       showingDiagram = false;
     });
@@ -326,6 +365,24 @@
         overlayState = createOverlayState();
       }
       overlayState.open(svg.outerHTML);
+    });
+
+    patchedCopyButton.addEventListener("click", async () => {
+      const patchedCode = patchedCopyButton.dataset.patchedCode || "";
+      if (!patchedCode) return;
+      try {
+        await navigator.clipboard.writeText(patchedCode);
+      } catch {
+        const textarea = document.createElement("textarea");
+        textarea.value = patchedCode;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
     });
 
     codeNode.dataset[PROCESSED_FLAG] = "true";
