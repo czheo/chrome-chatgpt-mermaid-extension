@@ -131,23 +131,23 @@ sequenceDiagram
   "expectation": "patched",
   "variant": "normal",
   "mustContain": [
-    "A[\"Vectors x,y\"] --> B[\"Dot: &lt;x,y&gt;\"]",
-    "A --> C[\"Norms: ||x||, ||y||\"]",
-    "B --> D[\"Cosine: &lt;x,y&gt; / (||x|| ||y||)\"]",
-    "A --> E[\"L2^2: ||x-y||^2\"]"
+    "A[\"Pair x,y\"] --> B[\"Expr: &lt;x,y&gt;\"]",
+    "A --> C[\"Bars: ||x||, ||y||\"]",
+    "B --> D[\"Ratio: &lt;x,y&gt; / (||x|| ||y||)\"]",
+    "A --> E[\"Square: ||x-y||^2\"]"
   ]
 }
 ```
 ```mermaid
 graph TD
-  A[Vectors x,y] --> B[Dot: <x,y>]
-  A --> C[Norms: ||x||, ||y||]
-  B --> D[Cosine: <x,y> / (||x|| ||y||)]
-  A --> E[L2^2: ||x-y||^2]
+  A[Pair x,y] --> B[Expr: <x,y>]
+  A --> C[Bars: ||x||, ||y||]
+  B --> D[Ratio: <x,y> / (||x|| ||y||)]
+  A --> E[Square: ||x-y||^2]
   B --> E
   C --> E
-  F[Unit-normalize x,y] --> G[Cosine == Dot]
-  F --> H[L2 ranking == Dot/Cos ranking]
+  F[Set x,y to unit] --> G[Expr A == Expr B]
+  F --> H[Rank A == Rank B]
   D --> G
   E --> H
 ```
@@ -229,4 +229,67 @@ graph TD
 ```mermaid
 graph TD
   A["x = y < z >"] --> B[end]
+```
+
+### Case: Decision node with parentheses and slash
+```json
+{
+  "expectation": "patched",
+  "variant": "normal",
+  "mustContain": [
+    "Q2{\"Choose mode (alpha/beta) for step?\"}",
+    "B2[\"Value &equals; pair(û, v̂) + α·tag(i) (+ extras, etc.)\"]"
+  ]
+}
+```
+```mermaid
+flowchart TD
+  S([Choose output mode])
+  S --> Q2{Choose mode (alpha/beta) for step?}
+  Q2 -- Yes --> B2[Value = pair(û, v̂) + α·tag(i) (+ extras, etc.)]
+```
+
+### Case: Rounded node with punctuation
+```json
+{
+  "expectation": "patched",
+  "variant": "normal",
+  "mustContain": [
+    "A(\"Need option A/B over large set?\")"
+  ]
+}
+```
+```mermaid
+flowchart TD
+  A(Need option A/B over large set?) --> B[Next]
+```
+
+### Case: Circle node keeps double parentheses
+```json
+{
+  "expectation": "patched",
+  "variant": "normal",
+  "mustContain": [
+    "A((\"pair(u, v) / ||u|| ||v||\"))"
+  ]
+}
+```
+```mermaid
+flowchart TD
+  A((pair(u, v) / ||u|| ||v||)) --> B[Next]
+```
+
+### Case: Stadium node remains bracket-based
+```json
+{
+  "expectation": "patched",
+  "variant": "normal",
+  "mustContain": [
+    "A([\"Value &equals; pair(u, v)\"])"
+  ]
+}
+```
+```mermaid
+flowchart TD
+  A([Value = pair(u, v)]) --> B[Next]
 ```

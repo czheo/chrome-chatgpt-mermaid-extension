@@ -82,7 +82,7 @@
     return /[A-Za-z0-9_.@-]/.test(token);
   }
 
-  function findClosingBracket(codeText, openIndex) {
+  function findClosingDelimiter(codeText, openIndex, openChar, closeChar) {
     let depth = 1;
     let inSingle = false;
     let inDouble = false;
@@ -125,12 +125,12 @@
         continue;
       }
 
-      if (ch === "[") {
+      if (ch === openChar) {
         depth += 1;
         continue;
       }
 
-      if (ch === "]") {
+      if (ch === closeChar) {
         depth -= 1;
         if (depth === 0) {
           return i;
@@ -139,6 +139,65 @@
     }
 
     return -1;
+  }
+
+  function findNextLabelDelimiter(codeText, fromIndex) {
+    const squareIndex = codeText.indexOf("[", fromIndex);
+    const curlyIndex = codeText.indexOf("{", fromIndex);
+    const roundIndex = codeText.indexOf("(", fromIndex);
+
+    let next = -1;
+    if (squareIndex !== -1) {
+      next = squareIndex;
+    }
+    if (curlyIndex !== -1 && (next === -1 || curlyIndex < next)) {
+      next = curlyIndex;
+    }
+    if (roundIndex !== -1 && (next === -1 || roundIndex < next)) {
+      next = roundIndex;
+    }
+
+    return next;
+  }
+
+  function shouldProcessNodeLabelAt(codeText, openIndex) {
+    if (!isNodeLikePrefix(codeText, openIndex)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  function maybePatchParentheticalLabelText(labelText) {
+    // Preserve stadium/curly-with-round wrappers by patching only inner text.
+    if (labelText.startsWith("[") && labelText.endsWith("]")) {
+      const innerLabel = labelText.slice(1, -1);
+      const patchedInner = maybePatchLabelText(innerLabel);
+      if (patchedInner === null) {
+        return null;
+      }
+      return `[${patchedInner}]`;
+    }
+    if (labelText.startsWith("{") && labelText.endsWith("}")) {
+      const innerLabel = labelText.slice(1, -1);
+      const patchedInner = maybePatchLabelText(innerLabel);
+      if (patchedInner === null) {
+        return null;
+      }
+      return `{${patchedInner}}`;
+    }
+
+    // Preserve circle syntax A((...)) by patching only the inner label.
+    if (labelText.startsWith("(") && labelText.endsWith(")")) {
+      const innerLabel = labelText.slice(1, -1);
+      const patchedInner = maybePatchLabelText(innerLabel);
+      if (patchedInner === null) {
+        return null;
+      }
+      return `(${patchedInner})`;
+    }
+
+    return maybePatchLabelText(labelText);
   }
 
   // If Node[...] contains invalid chars, Mermaid render may fail.
@@ -153,19 +212,21 @@
     let changed = false;
 
     while (cursor < codeText.length) {
-      const openIndex = codeText.indexOf("[", cursor);
+      const openIndex = findNextLabelDelimiter(codeText, cursor);
       if (openIndex === -1) {
         out += codeText.slice(cursor);
         break;
       }
 
-      if (!isNodeLikePrefix(codeText, openIndex)) {
+      if (!shouldProcessNodeLabelAt(codeText, openIndex)) {
         out += codeText.slice(cursor, openIndex + 1);
         cursor = openIndex + 1;
         continue;
       }
 
-      const closeIndex = findClosingBracket(codeText, openIndex);
+      const openChar = codeText[openIndex];
+      const closeChar = openChar === "[" ? "]" : openChar === "{" ? "}" : ")";
+      const closeIndex = findClosingDelimiter(codeText, openIndex, openChar, closeChar);
       if (closeIndex === -1) {
         out += codeText.slice(cursor);
         break;
@@ -173,14 +234,15 @@
 
       out += codeText.slice(cursor, openIndex + 1);
       const labelText = codeText.slice(openIndex + 1, closeIndex);
-      const patchedLabel = maybePatchLabelText(labelText);
+      const patchedLabel =
+        openChar === "(" ? maybePatchParentheticalLabelText(labelText) : maybePatchLabelText(labelText);
       if (patchedLabel === null) {
         out += labelText;
       } else {
         out += patchedLabel;
         changed = true;
       }
-      out += "]";
+      out += closeChar;
       cursor = closeIndex + 1;
     }
 
