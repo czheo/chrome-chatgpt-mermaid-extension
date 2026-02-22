@@ -1,10 +1,48 @@
 (() => {
+  "use strict";
+
+  /**
+   * Entry point for ChatGPT Mermaid enhancement.
+   *
+   * This file coordinates three concerns:
+   * - scanning/instrumenting Mermaid code blocks
+   * - rendering with retry patch support
+   * - wiring UI state helpers and overlay helper modules
+   */
+
   const MERMAID_SELECTOR = "code.language-mermaid";
   const PROCESSED_FLAG = "mmdEnhanced";
+  const BUTTON_CLASS = "mmd-action-btn flex gap-1 items-center select-none py-1";
+
   const patchFlowchartLabelsForRetry =
     typeof globalThis.patchFlowchartLabelsForRetry === "function"
       ? globalThis.patchFlowchartLabelsForRetry
       : (codeText) => codeText;
+
+  const createMermaidViewState =
+    typeof globalThis.createMermaidViewState === "function"
+      ? globalThis.createMermaidViewState
+      : () => ({
+          applyRenderResult: () => ({
+            showingDiagram: true,
+            renderButtonHidden: true,
+            renderedControlsHidden: false,
+            patchedCopyButtonHidden: true,
+            patchedCode: ""
+          }),
+          showCode: () => ({
+            showingDiagram: false,
+            renderButtonHidden: false,
+            renderedControlsHidden: true,
+            patchedCopyButtonHidden: true,
+            patchedCode: ""
+          })
+        });
+
+  const createMermaidOverlay =
+    typeof globalThis.createMermaidOverlay === "function"
+      ? globalThis.createMermaidOverlay
+      : null;
 
   if (typeof mermaid === "undefined") {
     return;
@@ -28,190 +66,17 @@
     initialized = true;
   }
 
+  function createActionButton(text, ariaLabel = text) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = BUTTON_CLASS;
+    button.textContent = text;
+    button.setAttribute("aria-label", ariaLabel);
+    return button;
+  }
+
   function getCodeText(codeNode) {
     return (codeNode.textContent || "").trim();
-  }
-
-  function createToggleButton() {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "mmd-action-btn flex gap-1 items-center select-none py-1";
-    button.textContent = "Render diagram";
-    button.setAttribute("aria-label", "Render Mermaid diagram");
-    return button;
-  }
-
-  function createActionButton(text, ariaLabel) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "mmd-action-btn flex gap-1 items-center select-none py-1";
-    button.textContent = text;
-    button.setAttribute("aria-label", ariaLabel || text);
-    return button;
-  }
-
-  function createOverlayState() {
-    const overlay = document.createElement("div");
-    overlay.className = "mmd-overlay";
-    overlay.setAttribute("aria-hidden", "true");
-
-    const topbar = document.createElement("div");
-    topbar.className = "mmd-overlay-topbar";
-
-    const closeBtn = createActionButton("Close", "Close enlarged Mermaid diagram");
-    closeBtn.classList.add("mmd-overlay-close");
-    topbar.appendChild(closeBtn);
-
-    const body = document.createElement("div");
-    body.className = "mmd-overlay-body";
-
-    const stage = document.createElement("div");
-    stage.className = "mmd-overlay-stage";
-    body.appendChild(stage);
-
-    const controls = document.createElement("div");
-    controls.className = "mmd-overlay-controls";
-
-    const zoomOutBtn = createActionButton("Zoom out", "Zoom out diagram");
-    const zoomInBtn = createActionButton("Zoom in", "Zoom in diagram");
-    const resetBtn = createActionButton("Reset", "Reset diagram view");
-    controls.appendChild(zoomOutBtn);
-    controls.appendChild(zoomInBtn);
-    controls.appendChild(resetBtn);
-
-    overlay.appendChild(topbar);
-    overlay.appendChild(body);
-    overlay.appendChild(controls);
-    document.body.appendChild(overlay);
-
-    const state = {
-      overlay,
-      stage,
-      scale: 1,
-      tx: 0,
-      ty: 0,
-      pointerId: null,
-      lastX: 0,
-      lastY: 0
-    };
-
-    function applyTransform() {
-      const svg = stage.querySelector("svg");
-      if (!svg) return;
-      svg.style.transformOrigin = "0 0";
-      svg.style.transform = `translate(${state.tx}px, ${state.ty}px) scale(${state.scale})`;
-      svg.style.cursor = state.pointerId === null ? "grab" : "grabbing";
-    }
-
-    function clampScale(nextScale) {
-      return Math.max(0.2, Math.min(5, nextScale));
-    }
-
-    function zoomAt(clientX, clientY, factor) {
-      const rect = stage.getBoundingClientRect();
-      const px = clientX - rect.left;
-      const py = clientY - rect.top;
-      const nextScale = clampScale(state.scale * factor);
-      const ratio = nextScale / state.scale;
-      state.tx = px - (px - state.tx) * ratio;
-      state.ty = py - (py - state.ty) * ratio;
-      state.scale = nextScale;
-      applyTransform();
-    }
-
-    function resetView() {
-      state.scale = 1;
-      state.tx = 0;
-      state.ty = 0;
-      applyTransform();
-    }
-
-    function closeOverlay() {
-      overlay.classList.remove("is-visible");
-      overlay.setAttribute("aria-hidden", "true");
-      stage.innerHTML = "";
-      document.body.classList.remove("mmd-overlay-open");
-      state.pointerId = null;
-    }
-
-    closeBtn.addEventListener("click", closeOverlay);
-    overlay.addEventListener("click", (event) => {
-      if (event.target === overlay) {
-        closeOverlay();
-      }
-    });
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && overlay.classList.contains("is-visible")) {
-        closeOverlay();
-      }
-    });
-
-    stage.addEventListener("pointerdown", (event) => {
-      const svg = stage.querySelector("svg");
-      if (!svg) return;
-      state.pointerId = event.pointerId;
-      state.lastX = event.clientX;
-      state.lastY = event.clientY;
-      stage.setPointerCapture(event.pointerId);
-      applyTransform();
-      event.preventDefault();
-    });
-
-    stage.addEventListener("pointermove", (event) => {
-      if (state.pointerId !== event.pointerId) return;
-      const dx = event.clientX - state.lastX;
-      const dy = event.clientY - state.lastY;
-      state.lastX = event.clientX;
-      state.lastY = event.clientY;
-      state.tx += dx;
-      state.ty += dy;
-      applyTransform();
-      event.preventDefault();
-    });
-
-    stage.addEventListener("pointerup", (event) => {
-      if (state.pointerId !== event.pointerId) return;
-      state.pointerId = null;
-      stage.releasePointerCapture(event.pointerId);
-      applyTransform();
-    });
-
-    stage.addEventListener("pointercancel", () => {
-      state.pointerId = null;
-      applyTransform();
-    });
-
-    stage.addEventListener(
-      "wheel",
-      (event) => {
-        const factor = event.deltaY < 0 ? 1.1 : 1 / 1.1;
-        zoomAt(event.clientX, event.clientY, factor);
-        event.preventDefault();
-      },
-      { passive: false }
-    );
-
-    zoomInBtn.addEventListener("click", () => {
-      const rect = stage.getBoundingClientRect();
-      zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, 1.2);
-    });
-
-    zoomOutBtn.addEventListener("click", () => {
-      const rect = stage.getBoundingClientRect();
-      zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, 1 / 1.2);
-    });
-
-    resetBtn.addEventListener("click", resetView);
-
-    return {
-      open(svgMarkup) {
-        stage.innerHTML = svgMarkup;
-        resetView();
-        overlay.classList.add("is-visible");
-        overlay.setAttribute("aria-hidden", "false");
-        document.body.classList.add("mmd-overlay-open");
-      }
-    };
   }
 
   async function renderDiagram(diagramWrap, codeText) {
@@ -226,7 +91,6 @@
 
     initMermaid();
     renderCounter += 1;
-
     const id = `mmd-render-${Date.now()}-${renderCounter}`;
 
     try {
@@ -238,20 +102,14 @@
       diagramWrap.dataset.rendered = "true";
       diagramWrap.dataset.usedPatchedCode = "false";
       delete diagramWrap.dataset.patchedCode;
-      return {
-        rendered: true,
-        usedPatchedCode: false,
-        patchedCode: ""
-      };
+      return { rendered: true, usedPatchedCode: false, patchedCode: "" };
     } catch (err) {
-      // HACK: GPT often emits flowchart labels like [text<br/>(...)] that Mermaid may parse as invalid.
-      // We retry once by quoting bracket-label contents in flowcharts to improve tolerance.
       const patchedCode = patchFlowchartLabelsForRetry(codeText);
       let retryMessage = "";
+
       if (patchedCode && patchedCode !== codeText) {
         try {
-          const retryId = `${id}-retry`;
-          const retryResult = await mermaid.render(retryId, patchedCode);
+          const retryResult = await mermaid.render(`${id}-retry`, patchedCode);
           diagramWrap.innerHTML = retryResult.svg;
           if (typeof retryResult.bindFunctions === "function") {
             retryResult.bindFunctions(diagramWrap);
@@ -259,11 +117,7 @@
           diagramWrap.dataset.rendered = "true";
           diagramWrap.dataset.usedPatchedCode = "true";
           diagramWrap.dataset.patchedCode = patchedCode;
-          return {
-            rendered: true,
-            usedPatchedCode: true,
-            patchedCode
-          };
+          return { rendered: true, usedPatchedCode: true, patchedCode };
         } catch (retryErr) {
           retryMessage = retryErr && retryErr.message ? retryErr.message : String(retryErr);
         }
@@ -277,12 +131,23 @@
       diagramWrap.dataset.rendered = "true";
       diagramWrap.dataset.usedPatchedCode = "false";
       delete diagramWrap.dataset.patchedCode;
-      return {
-        rendered: false,
-        usedPatchedCode: false,
-        patchedCode: ""
-      };
+      return { rendered: false, usedPatchedCode: false, patchedCode: "" };
     }
+  }
+
+  function applyViewState({ codeContainer, diagramWrap, renderButton, renderedControls, patchedCopyButton }, view) {
+    if (view.showingDiagram) {
+      codeContainer.style.display = "none";
+      diagramWrap.classList.add("is-visible");
+    } else {
+      diagramWrap.classList.remove("is-visible");
+      codeContainer.style.display = "";
+    }
+
+    renderButton.hidden = view.renderButtonHidden;
+    renderedControls.hidden = view.renderedControlsHidden;
+    patchedCopyButton.hidden = view.patchedCopyButtonHidden;
+    patchedCopyButton.dataset.patchedCode = view.patchedCode || "";
   }
 
   function enhanceMermaidCode(codeNode) {
@@ -291,85 +156,72 @@
     }
 
     const codeContainer = codeNode.closest("div.overflow-y-auto") || codeNode.parentElement;
-    if (!codeContainer) {
-      return;
-    }
+    if (!codeContainer) return;
 
     const diagramWrap = document.createElement("div");
     diagramWrap.className = "mmd-diagram-wrap";
     diagramWrap.dataset.rendered = "false";
-
     codeContainer.insertAdjacentElement("afterend", diagramWrap);
 
     const controlsContainer = document.createElement("div");
     controlsContainer.className = "mmd-controls-wrap";
 
-    const renderButton = createToggleButton();
+    const renderButton = createActionButton("Render diagram", "Render Mermaid diagram");
     const showCodeButton = createActionButton("Show code", "Show Mermaid source code");
     const enlargeButton = createActionButton("Enlarge", "Open enlarged Mermaid diagram");
+    const patchedCopyButton = createActionButton(
+      "Copy patched code",
+      "Copy Mermaid code after retry patch"
+    );
 
     const renderedControls = document.createElement("div");
     renderedControls.className = "mmd-rendered-controls";
     renderedControls.appendChild(showCodeButton);
     renderedControls.appendChild(enlargeButton);
-    const patchedCopyButton = createActionButton(
-      "Copy patched code",
-      "Copy Mermaid code after retry patch"
-    );
-    patchedCopyButton.hidden = true;
     renderedControls.appendChild(patchedCopyButton);
-    renderedControls.hidden = true;
 
     controlsContainer.appendChild(renderButton);
     controlsContainer.appendChild(renderedControls);
     diagramWrap.insertAdjacentElement("afterend", controlsContainer);
 
-    let showingDiagram = false;
-    let overlayState = null;
+    const viewState = createMermaidViewState();
+    applyViewState(
+      { codeContainer, diagramWrap, renderButton, renderedControls, patchedCopyButton },
+      viewState.showCode()
+    );
+
+    let overlayController = null;
 
     renderButton.addEventListener("click", async () => {
       const codeText = getCodeText(codeNode);
-      if (!codeText) {
-        return;
-      }
-
+      if (!codeText) return;
       const renderResult = await renderDiagram(diagramWrap, codeText);
-      codeContainer.style.display = "none";
-      diagramWrap.classList.add("is-visible");
-      renderButton.hidden = true;
-      renderedControls.hidden = false;
-      patchedCopyButton.hidden = !(
-        renderResult &&
-        renderResult.rendered &&
-        renderResult.usedPatchedCode &&
-        renderResult.patchedCode
+      applyViewState(
+        { codeContainer, diagramWrap, renderButton, renderedControls, patchedCopyButton },
+        viewState.applyRenderResult(renderResult)
       );
-      patchedCopyButton.dataset.patchedCode = patchedCopyButton.hidden ? "" : renderResult.patchedCode;
-      showingDiagram = true;
     });
 
     showCodeButton.addEventListener("click", () => {
-      if (!showingDiagram) return;
-      diagramWrap.classList.remove("is-visible");
-      codeContainer.style.display = "";
-      renderedControls.hidden = true;
-      patchedCopyButton.hidden = true;
-      renderButton.hidden = false;
-      showingDiagram = false;
+      applyViewState(
+        { codeContainer, diagramWrap, renderButton, renderedControls, patchedCopyButton },
+        viewState.showCode()
+      );
     });
 
     enlargeButton.addEventListener("click", () => {
       const svg = diagramWrap.querySelector("svg");
-      if (!svg) return;
-      if (!overlayState) {
-        overlayState = createOverlayState();
+      if (!svg || !createMermaidOverlay) return;
+      if (!overlayController) {
+        overlayController = createMermaidOverlay(createActionButton);
       }
-      overlayState.open(svg.outerHTML);
+      overlayController.open(svg.outerHTML);
     });
 
     patchedCopyButton.addEventListener("click", async () => {
       const patchedCode = patchedCopyButton.dataset.patchedCode || "";
       if (!patchedCode) return;
+
       try {
         await navigator.clipboard.writeText(patchedCode);
       } catch {
@@ -389,18 +241,9 @@
   }
 
   function scan() {
-    const nodes = document.querySelectorAll(MERMAID_SELECTOR);
-    nodes.forEach(enhanceMermaidCode);
+    document.querySelectorAll(MERMAID_SELECTOR).forEach(enhanceMermaidCode);
   }
 
   scan();
-
-  const observer = new MutationObserver(() => {
-    scan();
-  });
-
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true
-  });
+  new MutationObserver(scan).observe(document.body, { childList: true, subtree: true });
 })();

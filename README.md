@@ -37,5 +37,8 @@ Tests live in `tests/`:
 ```text
 chrome-chatgpt-mermaid-extension/
   chatgpt-mermaid/   # extension folder loaded directly by Chrome
+    content.js       # orchestration: scan, render, wire controls
+    content-overlay.js # overlay pan/zoom module
+    ui-state.js      # testable UI state transitions
   tests/             # test files
 ```

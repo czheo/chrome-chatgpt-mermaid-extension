@@ -12,6 +12,8 @@
       "js": [
         "mermaid.min.js",
         "mermaid-patch.js",
+        "ui-state.js",
+        "content-overlay.js",
         "content.js"
       ],
       "css": [

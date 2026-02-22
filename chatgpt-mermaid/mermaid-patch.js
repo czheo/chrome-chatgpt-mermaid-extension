@@ -1,4 +1,20 @@
 (function (root) {
+  "use strict";
+
+  /**
+   * Retry-only Mermaid flowchart label patcher.
+   *
+   * Purpose:
+   * - Mermaid flowcharts sometimes fail when node labels contain HTML-ish tokens
+   *   or punctuation in unquoted bracket syntax (e.g. A[text<br/>x=y]).
+   * - This helper rewrites only label text to a safer quoted form.
+   *
+   * Guardrails:
+   * - Applies only to `flowchart`/`graph` diagrams.
+   * - Returns original input when no change is required.
+   * - Preserves structural delimiters and tries to avoid edge-label contexts.
+   */
+
   function isFlowchartLikeDiagram(codeText) {
     return /^\s*(?:flowchart|graph)\b/im.test(codeText);
   }
@@ -15,9 +31,11 @@
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
       .replace(/=/g, "&equals;");
+
     for (let i = 0; i < breakPlaceholders.length; i += 1) {
       escaped = escaped.replace(`__MMD_BR_${i}__`, breakPlaceholders[i]);
     }
+
     return escaped;
   }
 
@@ -61,25 +79,20 @@
     while (i >= 0 && /\s/.test(codeText[i])) {
       i -= 1;
     }
-    if (i < 0) {
-      return false;
-    }
+    if (i < 0) return false;
 
-    // Skip edge labels (|...|) and other obvious non-node contexts.
+    // Skip common non-node contexts (edge labels, quoted fragments).
     if (codeText[i] === "|" || codeText[i] === '"') {
       return false;
     }
 
-    let tokenEnd = i;
+    const tokenEnd = i;
     while (i >= 0 && /[^\s;:,()[\]{}]/.test(codeText[i])) {
       i -= 1;
     }
-    const token = codeText.slice(i + 1, tokenEnd + 1);
-    if (!token) {
-      return false;
-    }
 
-    return /[A-Za-z0-9_.@-]/.test(token);
+    const token = codeText.slice(i + 1, tokenEnd + 1);
+    return token ? /[A-Za-z0-9_.@-]/.test(token) : false;
   }
 
   function findClosingDelimiter(codeText, openIndex, openChar, closeChar) {
@@ -95,23 +108,18 @@
         escaped = false;
         continue;
       }
-
       if (ch === "\\") {
         escaped = true;
         continue;
       }
 
       if (inSingle) {
-        if (ch === "'") {
-          inSingle = false;
-        }
+        if (ch === "'") inSingle = false;
         continue;
       }
 
       if (inDouble) {
-        if (ch === '"') {
-          inDouble = false;
-        }
+        if (ch === '"') inDouble = false;
         continue;
       }
 
@@ -119,7 +127,6 @@
         inSingle = true;
         continue;
       }
-
       if (ch === '"') {
         inDouble = true;
         continue;
@@ -132,9 +139,7 @@
 
       if (ch === closeChar) {
         depth -= 1;
-        if (depth === 0) {
-          return i;
-        }
+        if (depth === 0) return i;
       }
     }
 
@@ -147,61 +152,35 @@
     const roundIndex = codeText.indexOf("(", fromIndex);
 
     let next = -1;
-    if (squareIndex !== -1) {
-      next = squareIndex;
-    }
-    if (curlyIndex !== -1 && (next === -1 || curlyIndex < next)) {
-      next = curlyIndex;
-    }
-    if (roundIndex !== -1 && (next === -1 || roundIndex < next)) {
-      next = roundIndex;
-    }
-
+    if (squareIndex !== -1) next = squareIndex;
+    if (curlyIndex !== -1 && (next === -1 || curlyIndex < next)) next = curlyIndex;
+    if (roundIndex !== -1 && (next === -1 || roundIndex < next)) next = roundIndex;
     return next;
   }
 
-  function shouldProcessNodeLabelAt(codeText, openIndex) {
-    if (!isNodeLikePrefix(codeText, openIndex)) {
-      return false;
-    }
-
-    return true;
-  }
-
   function maybePatchParentheticalLabelText(labelText) {
-    // Preserve stadium/curly-with-round wrappers by patching only inner text.
+    // Preserve nested wrapper syntax while patching only user-facing label content.
     if (labelText.startsWith("[") && labelText.endsWith("]")) {
       const innerLabel = labelText.slice(1, -1);
       const patchedInner = maybePatchLabelText(innerLabel);
-      if (patchedInner === null) {
-        return null;
-      }
-      return `[${patchedInner}]`;
+      return patchedInner === null ? null : `[${patchedInner}]`;
     }
+
     if (labelText.startsWith("{") && labelText.endsWith("}")) {
       const innerLabel = labelText.slice(1, -1);
       const patchedInner = maybePatchLabelText(innerLabel);
-      if (patchedInner === null) {
-        return null;
-      }
-      return `{${patchedInner}}`;
+      return patchedInner === null ? null : `{${patchedInner}}`;
     }
 
-    // Preserve circle syntax A((...)) by patching only the inner label.
     if (labelText.startsWith("(") && labelText.endsWith(")")) {
       const innerLabel = labelText.slice(1, -1);
       const patchedInner = maybePatchLabelText(innerLabel);
-      if (patchedInner === null) {
-        return null;
-      }
-      return `(${patchedInner})`;
+      return patchedInner === null ? null : `(${patchedInner})`;
     }
 
     return maybePatchLabelText(labelText);
   }
 
-  // If Node[...] contains invalid chars, Mermaid render may fail.
-  // Patch such labels to Node["..."] in retry mode and escape troublesome chars.
   function patchFlowchartLabelsForRetry(codeText) {
     if (!isFlowchartLikeDiagram(codeText)) {
       return codeText;
@@ -218,7 +197,7 @@
         break;
       }
 
-      if (!shouldProcessNodeLabelAt(codeText, openIndex)) {
+      if (!isNodeLikePrefix(codeText, openIndex)) {
         out += codeText.slice(cursor, openIndex + 1);
         cursor = openIndex + 1;
         continue;
@@ -233,15 +212,18 @@
       }
 
       out += codeText.slice(cursor, openIndex + 1);
+
       const labelText = codeText.slice(openIndex + 1, closeIndex);
       const patchedLabel =
         openChar === "(" ? maybePatchParentheticalLabelText(labelText) : maybePatchLabelText(labelText);
+
       if (patchedLabel === null) {
         out += labelText;
       } else {
         out += patchedLabel;
         changed = true;
       }
+
       out += closeChar;
       cursor = closeIndex + 1;
     }
